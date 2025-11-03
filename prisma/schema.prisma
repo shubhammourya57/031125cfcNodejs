@@ -17,11 +17,11 @@ model User {
   sessionId String? @unique
   createdAt DateTime @default(now())
 
-  // One-to-one chat relations
+ 
   individualMessagesSent     IndividualMessage[] @relation("SentIndividualMessages")
   individualMessagesReceived IndividualMessage[] @relation("ReceivedIndividualMessages")
 
-  // Group chat relations
+
   groupMessagesSent GroupMessage[] @relation("SentGroupMessages")
 
   groupMembers GroupMember[]

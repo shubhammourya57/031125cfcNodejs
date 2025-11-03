@@ -1,15 +1,20 @@
-import { Request,Response,NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
+import { Request, Response, NextFunction } from "express";
+import { PrismaClient, User } from "@prisma/client";
 import { compareSync, genSaltSync, hashSync } from "bcrypt-ts";
 import jwt from "jsonwebtoken";
 const prisma = new PrismaClient();
-export const signup = async (req: Request, res: Response, next: NextFunction) => {      
+import NodeCache from 'node-cache';
+
+// Initialize the cache
+const myCache = new NodeCache();
+
+export const signup = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password, name } = req.body;
-    const salt = genSaltSync(10);
-    const hashedPassword = hashSync(password, salt);
-    const existing = await prisma.user.findUnique({ where: { email } });
-if (existing) return res.status(400).json({ message: "Email already exists" });
+        const salt = genSaltSync(10);
+        const hashedPassword = hashSync(password, salt);
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (existing) return res.status(400).json({ message: "Email already exists" });
 
         const user = await prisma.user.create({
             data: {
@@ -18,38 +23,38 @@ if (existing) return res.status(400).json({ message: "Email already exists" });
                 name,
             },
         });
-          return res.json({
-      status: 200,
-      success: true,
-      message: "Signup successfully",
-      data: user
-    });
+        return res.json({
+            status: 200,
+            success: true,
+            message: "Signup successfully",
+            data: user
+        });
     } catch (error) {
         console.error(error);
-         return res.json({
-      status: 500,
-      success: false,
-      message: "Internal server error",
-    });
+        return res.json({
+            status: 500,
+            success: false,
+            message: "Internal server error",
+        });
     }
 };
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { email, password } = req.body;   
+        const { email, password } = req.body;
         const user = await prisma.user.findUnique({
             where: {
                 email,
             },
-        }); 
+        });
         if (!user) {
             return res.json({
                 status: 404,
                 success: false,
                 message: "User not found",
             });
-        }       
-        
+        }
+
         const isPasswordValid = compareSync(password, user.password);
         if (!isPasswordValid) {
             return res.json({
@@ -63,30 +68,30 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
             where: { email },
             data: { sessionId },
         });
-       const token = jwt.sign(
-  { userId: updatedUser.id, email, sessionId },
-  process.env.JWT_SECRET as string, 
-  { expiresIn: "1h" }
-);
+        const token = jwt.sign(
+            { userId: updatedUser.id, email, sessionId },
+            process.env.JWT_SECRET as string,
+            { expiresIn: "1h" }
+        );
 
         return res.json({
             status: 200,
-            success: true,  
+            success: true,
             message: "Login successfully",
             data: { updatedUser, token },
         });
     } catch (error) {
         console.error(error);
-         return res.json({
-             status: 500,
-             success: false,
-             message: "Internal server error",
-         });
+        return res.json({
+            status: 500,
+            success: false,
+            message: "Internal server error",
+        });
     }
 }
 export const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { email } = req.body; 
+        const { email } = req.body;
         const user = await prisma.user.findUnique({
             where: { email },
         });
@@ -115,3 +120,36 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
         });
     }
 }   
+
+export const profile = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // const { email } = req.body; 
+        const user = await prisma.user.findMany();
+        if (!user) {
+            return res.json({   
+                status: 404,
+                success: false,
+                message: "User not found",
+            });
+        }
+     const cachedUser = myCache.get<User>(`user_${user[0].id}`);
+           if (cachedUser) {
+  console.log(`Cached User: ${cachedUser.name}`);
+} else {
+  console.log('User not found in cache.');
+}
+        return res.json({
+            status: 200,
+            success: true,
+            message: "User profile retrieved successfully",
+            data: user,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.json({
+            status: 500,
+            success: false,
+            message: "Internal server error",
+        });
+    }
+};  
